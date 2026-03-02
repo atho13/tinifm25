@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Mengatur konfigurasi uhttpd
+uci set uhttpd.main.index_page='index.php'
+uci set uhttpd.main.interpreter='.php=/usr/bin/php-cgi'
+uci commit uhttpd
+
+# Restart uhttpd
+/etc/init.d/uhttpd restart
+
+ROOTFS_LINK="/www/tinyfm/rootfs"
+
+mkdir -p /www/tinyfm
+
+[ -e "$ROOTFS_LINK" ] && rm -rf "$ROOTFS_LINK"
+
+ln -s / "$ROOTFS_LINK"
+
+exit 0
