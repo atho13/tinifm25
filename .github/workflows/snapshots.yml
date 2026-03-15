@@ -104,13 +104,6 @@ jobs:
         echo "Built APK:"
         ls -lh "$FILE"
 
-    # ================= UPLOAD ARTIFACT =================
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: luci-app-tinyfm_${{ steps.get_version.outputs.version }}
-        path: ${{ env.APK_PATH }}
-
     # ================= RELEASE =================
     - name: Publish to GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
