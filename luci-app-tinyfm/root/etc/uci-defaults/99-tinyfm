@@ -1,15 +1,20 @@
 #!/bin/sh
 
+# Fix PHP memory limit
+sed -i 's/^memory_limit.*/memory_limit = 64M/' /etc/php.ini
+
 # Mengatur konfigurasi uhttpd
 uci set uhttpd.main.index_page='index.php'
 uci set uhttpd.main.interpreter='.php=/usr/bin/php-cgi'
 uci commit uhttpd
 
+# Start php8-fpm sebelum uhttpd
 /etc/init.d/php8-fpm start
 
 # Restart uhttpd
 /etc/init.d/uhttpd restart
 
+# Symlink rootfs
 ROOTFS_LINK="/www/tinyfm/rootfs"
 
 mkdir -p /www/tinyfm
