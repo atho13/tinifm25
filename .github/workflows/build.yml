@@ -1,0 +1,494 @@
+name: Build luci-app-tinyfm (OpenWrt SNAPSHOT + Stable SDK)
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+
+  # ============================================================
+  # JOB 1: Build & Cache PHP8 — SNAPSHOT SDK (menghasilkan .apk)
+  # ============================================================
+  build-deps-snapshot:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+
+    - name: Get week number
+      id: date
+      run: echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+
+    - name: Check PHP8 cache (snapshot)
+      id: cache-php8
+      uses: actions/cache@v4
+      with:
+        path: php8-packages-snapshot.tar.zst
+        key: openwrt-php8-snapshot-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-php8-snapshot-${{ runner.os }}-
+
+    - name: Install Dependencies
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          build-essential clang flex bison g++ gawk \
+          gcc-multilib g++-multilib gettext git libncurses-dev \
+          libssl-dev python3-distutils rsync unzip zlib1g-dev \
+          file wget curl xz-utils zstd
+
+    - name: Cache OpenWrt Snapshot SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      id: cache-sdk
+      uses: actions/cache@v4
+      with:
+        path: sdk-snapshot.tar.zst
+        key: openwrt-sdk-snapshot-x86-64-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-sdk-snapshot-x86-64-${{ runner.os }}-
+
+    - name: Download Snapshot SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true' && steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        wget -q --show-progress \
+          "https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst" \
+          -O sdk-snapshot.tar.zst
+
+    - name: Extract Snapshot SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        tar --use-compress-program=unzstd -xf sdk-snapshot.tar.zst
+        EXTRACTED_DIR=$(tar -tf sdk-snapshot.tar.zst 2>/dev/null | head -n1 | cut -f1 -d"/")
+        mv "$EXTRACTED_DIR" sdk-snapshot
+
+    - name: Cache Feeds (snapshot)
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      id: cache-feeds
+      uses: actions/cache@v4
+      with:
+        path: |
+          sdk-snapshot/feeds
+          sdk-snapshot/staging_dir/host
+          sdk-snapshot/staging_dir/hostpkg
+        key: openwrt-feeds-snapshot-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-feeds-snapshot-${{ runner.os }}-
+
+    - name: Prepare Snapshot SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        cd sdk-snapshot
+
+        cat > feeds.conf << 'EOF'
+        src-git base https://github.com/openwrt/openwrt.git
+        src-git packages https://github.com/openwrt/packages.git
+        src-git luci https://github.com/openwrt/luci.git
+        src-git routing https://github.com/openwrt/routing.git
+        src-git telephony https://github.com/openwrt/telephony.git
+        EOF
+
+        git config --global http.postBuffer 524288000
+        git config --global core.compression 0
+        git config --global http.version HTTP/1.1
+        export GIT_OPTIONAL_LOCKS=0
+
+        if [ "${{ steps.cache-feeds.outputs.cache-hit }}" != "true" ]; then
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+        else
+          ./scripts/feeds install -a 2>/dev/null || true
+        fi
+
+        make defconfig
+
+    - name: Build PHP8 and dependencies (snapshot)
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        cd sdk-snapshot
+
+        build_pkg() {
+          echo ">>> Building $1..."
+          make package/$1/compile V=s -j$(nproc) 2>&1 | tail -5
+          [ ${PIPESTATUS[0]} -eq 0 ] || { echo "FAILED: $1"; exit 1; }
+        }
+
+        build_pkg php8
+        build_pkg curl
+        build_pkg bash
+        build_pkg tar
+        build_pkg coreutils
+        build_pkg zoneinfo
+
+    - name: Save PHP8 snapshot cache
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        tar --zstd -cf php8-packages-snapshot.tar.zst \
+          -C sdk-snapshot bin/packages \
+          -C sdk-snapshot staging_dir/target-x86_64_musl
+        ls -lh php8-packages-snapshot.tar.zst
+
+  # ============================================================
+  # JOB 2: Build & Cache PHP8 — Stable 24.10.5 SDK (menghasilkan .ipk)
+  # ============================================================
+  build-deps-stable:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+
+    - name: Get week number
+      id: date
+      run: echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+
+    - name: Check PHP8 cache (stable)
+      id: cache-php8
+      uses: actions/cache@v4
+      with:
+        path: php8-packages-stable.tar.zst
+        key: openwrt-php8-stable-24.10.5-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-php8-stable-24.10.5-${{ runner.os }}-
+
+    - name: Install Dependencies
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          build-essential clang flex bison g++ gawk \
+          gcc-multilib g++-multilib gettext git libncurses-dev \
+          libssl-dev python3-distutils rsync unzip zlib1g-dev \
+          file wget curl xz-utils zstd
+
+    - name: Cache OpenWrt Stable SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      id: cache-sdk
+      uses: actions/cache@v4
+      with:
+        path: sdk-stable.tar.zst
+        key: openwrt-sdk-stable-24.10.5-x86-64-${{ runner.os }}
+        restore-keys: |
+          openwrt-sdk-stable-24.10.5-x86-64-${{ runner.os }}
+
+    - name: Download Stable SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true' && steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        wget -q --show-progress \
+          "https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst" \
+          -O sdk-stable.tar.zst
+
+    - name: Extract Stable SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        tar --use-compress-program=unzstd -xf sdk-stable.tar.zst
+        EXTRACTED_DIR=$(tar -tf sdk-stable.tar.zst 2>/dev/null | head -n1 | cut -f1 -d"/")
+        mv "$EXTRACTED_DIR" sdk-stable
+
+    - name: Cache Feeds (stable)
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      id: cache-feeds
+      uses: actions/cache@v4
+      with:
+        path: |
+          sdk-stable/feeds
+          sdk-stable/staging_dir/host
+          sdk-stable/staging_dir/hostpkg
+        key: openwrt-feeds-stable-24.10.5-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-feeds-stable-24.10.5-${{ runner.os }}-
+
+    - name: Prepare Stable SDK
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        cd sdk-stable
+
+        git config --global http.postBuffer 524288000
+        git config --global core.compression 0
+        git config --global http.version HTTP/1.1
+        export GIT_OPTIONAL_LOCKS=0
+
+        if [ "${{ steps.cache-feeds.outputs.cache-hit }}" != "true" ]; then
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+        else
+          ./scripts/feeds install -a 2>/dev/null || true
+        fi
+
+        make defconfig
+
+    - name: Build PHP8 and dependencies (stable)
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        cd sdk-stable
+
+        build_pkg() {
+          echo ">>> Building $1..."
+          make package/$1/compile V=s -j$(nproc) 2>&1 | tail -5
+          [ ${PIPESTATUS[0]} -eq 0 ] || { echo "FAILED: $1"; exit 1; }
+        }
+
+        build_pkg php8
+        build_pkg curl
+        build_pkg bash
+        build_pkg tar
+        build_pkg coreutils
+        build_pkg zoneinfo
+
+    - name: Save PHP8 stable cache
+      if: steps.cache-php8.outputs.cache-hit != 'true'
+      run: |
+        tar --zstd -cf php8-packages-stable.tar.zst \
+          -C sdk-stable bin/packages \
+          -C sdk-stable staging_dir/target-x86_64_musl
+        ls -lh php8-packages-stable.tar.zst
+
+  # ============================================================
+  # JOB 3: Build luci-app-tinyfm (APK + IPK)
+  # ============================================================
+  build:
+    runs-on: ubuntu-22.04
+    needs: [build-deps-snapshot, build-deps-stable]
+    timeout-minutes: 30
+
+    steps:
+
+    # ================= CHECKOUT =================
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    # ================= EXTRACT VERSION =================
+    - name: Extract version
+      id: get_version
+      run: |
+        VERSION=$(grep 'PKG_VERSION:=' luci-app-tinyfm/Makefile | cut -d'=' -f2 | tr -d ' ')
+        RELEASE=$(grep 'PKG_RELEASE:=' luci-app-tinyfm/Makefile | cut -d'=' -f2 | tr -d ' ')
+        FULL_VERSION=${VERSION}-${RELEASE}
+
+        echo "PKG_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "PKG_RELEASE=$RELEASE" >> $GITHUB_ENV
+        echo "FULL_VERSION=$FULL_VERSION" >> $GITHUB_ENV
+        echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "Detected version: $FULL_VERSION"
+
+    # ================= INSTALL DEPENDENCIES =================
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          build-essential clang flex bison g++ gawk \
+          gcc-multilib g++-multilib gettext git libncurses-dev \
+          libssl-dev python3-distutils rsync unzip zlib1g-dev \
+          file wget curl xz-utils zstd
+
+    # ================= GET WEEK NUMBER =================
+    - name: Get week number
+      id: date
+      run: echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+
+    # ==========================================
+    # BAGIAN A — BUILD .APK (SNAPSHOT)
+    # ==========================================
+
+    - name: Restore Snapshot SDK cache
+      id: cache-sdk-snapshot
+      uses: actions/cache@v4
+      with:
+        path: sdk-snapshot.tar.zst
+        key: openwrt-sdk-snapshot-x86-64-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-sdk-snapshot-x86-64-${{ runner.os }}-
+
+    - name: Download Snapshot SDK (fallback)
+      if: steps.cache-sdk-snapshot.outputs.cache-hit != 'true'
+      run: |
+        wget -q --show-progress \
+          "https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst" \
+          -O sdk-snapshot.tar.zst
+
+    - name: Extract Snapshot SDK
+      run: |
+        tar --use-compress-program=unzstd -xf sdk-snapshot.tar.zst
+        EXTRACTED_DIR=$(tar -tf sdk-snapshot.tar.zst 2>/dev/null | head -n1 | cut -f1 -d"/")
+        mv "$EXTRACTED_DIR" sdk-snapshot
+
+    - name: Restore Feeds cache (snapshot)
+      id: cache-feeds-snapshot
+      uses: actions/cache@v4
+      with:
+        path: |
+          sdk-snapshot/feeds
+          sdk-snapshot/staging_dir/host
+          sdk-snapshot/staging_dir/hostpkg
+        key: openwrt-feeds-snapshot-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-feeds-snapshot-${{ runner.os }}-
+
+    - name: Prepare Snapshot SDK
+      run: |
+        cd sdk-snapshot
+
+        cat > feeds.conf << 'EOF'
+        src-git base https://github.com/openwrt/openwrt.git
+        src-git packages https://github.com/openwrt/packages.git
+        src-git luci https://github.com/openwrt/luci.git
+        src-git routing https://github.com/openwrt/routing.git
+        src-git telephony https://github.com/openwrt/telephony.git
+        EOF
+
+        git config --global http.postBuffer 524288000
+        git config --global core.compression 0
+        git config --global http.version HTTP/1.1
+        export GIT_OPTIONAL_LOCKS=0
+
+        if [ "${{ steps.cache-feeds-snapshot.outputs.cache-hit }}" != "true" ]; then
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+        else
+          ./scripts/feeds install -a 2>/dev/null || true
+        fi
+
+        make defconfig
+
+    - name: Restore PHP8 cache (snapshot)
+      uses: actions/cache@v4
+      with:
+        path: php8-packages-snapshot.tar.zst
+        key: openwrt-php8-snapshot-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-php8-snapshot-${{ runner.os }}-
+
+    - name: Extract PHP8 into Snapshot SDK
+      run: |
+        if [ -f php8-packages-snapshot.tar.zst ]; then
+          echo "Extracting cached PHP8 packages (snapshot)..."
+          mkdir -p _tmp_snapshot
+          tar --zstd -xf php8-packages-snapshot.tar.zst -C _tmp_snapshot
+          cp -r _tmp_snapshot/bin/packages sdk-snapshot/bin/ 2>/dev/null || true
+          cp -r _tmp_snapshot/staging_dir/target-x86_64_musl sdk-snapshot/staging_dir/ 2>/dev/null || true
+          rm -rf _tmp_snapshot
+        fi
+
+    - name: Copy package & Build APK (snapshot)
+      run: |
+        cp -r luci-app-tinyfm sdk-snapshot/package/
+        cd sdk-snapshot
+        make package/luci-app-tinyfm/compile V=s -j$(nproc)
+
+    - name: Locate and rename APK
+      run: |
+        FILE=$(find sdk-snapshot/bin/packages -name "luci-app-tinyfm*.apk" | head -n1)
+        if [ -z "$FILE" ]; then echo "APK not found!"; exit 1; fi
+
+        RENAMED="luci-app-tinyfm_${{ env.FULL_VERSION }}.apk"
+        cp "$FILE" "$RENAMED"
+
+        echo "APK_PATH=$RENAMED" >> $GITHUB_ENV
+        echo "APK: $(ls -lh $RENAMED)"
+
+    # ==========================================
+    # BAGIAN B — BUILD .IPK (STABLE 24.10.5)
+    # ==========================================
+
+    - name: Restore Stable SDK cache
+      id: cache-sdk-stable
+      uses: actions/cache@v4
+      with:
+        path: sdk-stable.tar.zst
+        key: openwrt-sdk-stable-24.10.5-x86-64-${{ runner.os }}
+        restore-keys: |
+          openwrt-sdk-stable-24.10.5-x86-64-${{ runner.os }}
+
+    - name: Download Stable SDK (fallback)
+      if: steps.cache-sdk-stable.outputs.cache-hit != 'true'
+      run: |
+        wget -q --show-progress \
+          "https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst" \
+          -O sdk-stable.tar.zst
+
+    - name: Extract Stable SDK
+      run: |
+        tar --use-compress-program=unzstd -xf sdk-stable.tar.zst
+        EXTRACTED_DIR=$(tar -tf sdk-stable.tar.zst 2>/dev/null | head -n1 | cut -f1 -d"/")
+        mv "$EXTRACTED_DIR" sdk-stable
+
+    - name: Restore Feeds cache (stable)
+      id: cache-feeds-stable
+      uses: actions/cache@v4
+      with:
+        path: |
+          sdk-stable/feeds
+          sdk-stable/staging_dir/host
+          sdk-stable/staging_dir/hostpkg
+        key: openwrt-feeds-stable-24.10.5-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-feeds-stable-24.10.5-${{ runner.os }}-
+
+    - name: Prepare Stable SDK
+      run: |
+        cd sdk-stable
+
+        git config --global http.postBuffer 524288000
+        git config --global core.compression 0
+        git config --global http.version HTTP/1.1
+        export GIT_OPTIONAL_LOCKS=0
+
+        if [ "${{ steps.cache-feeds-stable.outputs.cache-hit }}" != "true" ]; then
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+        else
+          ./scripts/feeds install -a 2>/dev/null || true
+        fi
+
+        make defconfig
+
+    - name: Restore PHP8 cache (stable)
+      uses: actions/cache@v4
+      with:
+        path: php8-packages-stable.tar.zst
+        key: openwrt-php8-stable-24.10.5-${{ runner.os }}-${{ steps.date.outputs.week }}
+        restore-keys: |
+          openwrt-php8-stable-24.10.5-${{ runner.os }}-
+
+    - name: Extract PHP8 into Stable SDK
+      run: |
+        if [ -f php8-packages-stable.tar.zst ]; then
+          echo "Extracting cached PHP8 packages (stable)..."
+          mkdir -p _tmp_stable
+          tar --zstd -xf php8-packages-stable.tar.zst -C _tmp_stable
+          cp -r _tmp_stable/bin/packages sdk-stable/bin/ 2>/dev/null || true
+          cp -r _tmp_stable/staging_dir/target-x86_64_musl sdk-stable/staging_dir/ 2>/dev/null || true
+          rm -rf _tmp_stable
+        fi
+
+    - name: Copy package & Build IPK (stable)
+      run: |
+        cp -r luci-app-tinyfm sdk-stable/package/
+        cd sdk-stable
+        make package/luci-app-tinyfm/compile V=s -j$(nproc)
+
+    - name: Locate and rename IPK
+      run: |
+        FILE=$(find sdk-stable/bin/packages -name "luci-app-tinyfm*.ipk" | head -n1)
+        if [ -z "$FILE" ]; then echo "IPK not found!"; exit 1; fi
+
+        RENAMED="luci-app-tinyfm_${{ env.FULL_VERSION }}.ipk"
+        cp "$FILE" "$RENAMED"
+
+        echo "IPK_PATH=$RENAMED" >> $GITHUB_ENV
+        echo "IPK: $(ls -lh $RENAMED)"
+
+    # ================= RELEASE =================
+    - name: Publish to GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: luci-app-tinyfm ${{ github.ref_name }}
+        files: |
+          ${{ env.APK_PATH }}
+          ${{ env.IPK_PATH }}
