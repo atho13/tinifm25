@@ -1,3 +1,12 @@
+<h1 align="center">
+  <br>Luci-app-TinyFM<br>
+</h1>
+
+  <p align="center">
+	<a target="_blank" href="https://github.com/Yogxx/tinyfm-snapshot/releases"><img src="https://img.shields.io/github/downloads/Yogxx/tinyfm-snapshot/total?label=Total%20Download&labelColor=blue&style=for-the-badge">
+	</a>
+  </p>
+
 Required dependencies
 ---
 - copy and paste in OpenWrt terminal
