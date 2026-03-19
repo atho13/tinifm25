@@ -22,12 +22,12 @@ Screenshoot
 ---
 <details><summary>Screenshot</summary>
  <p>
-  <img src="https://raw.githubusercontent.com/Yogxx/tinyfm-snapshot/refs/heads/main/img/tinyfm.png?token=GHSAT0AAAAAADVLGX4ILKTJM6QAPBHM7WX42N3NMSA" alt="home">
+  <img src="https://raw.githubusercontent.com/Yogxx/tinyfm-snapshot/refs/heads/main/img/tinyfm.png?token=GHSAT0AAAAAADVLGX4ILKTJM6QAPBHM7WX42N3NMSA" alt="tinyfm">
  </p>
  <p>
-  <img src="https://raw.githubusercontent.com/Yogxx/tinyfm-snapshot/refs/heads/main/img/tinyfm1.png?token=GHSAT0AAAAAADVLGX4JJTCOKTHC6RH77KCE2N3NNLQ2N3NMSA" alt="home">
+  <img src="https://raw.githubusercontent.com/Yogxx/tinyfm-snapshot/refs/heads/main/img/tinyfm1.png?token=GHSAT0AAAAAADVLGX4IEIQTNOGSBLUDWMVG2N3NR3Q" alt="tinyfm1">
  </p>
  <p>
-  <img src="https://raw.githubusercontent.com/Yogxx/tinyfm-snapshot/refs/heads/main/img/tinyfm2.png?token=GHSAT0AAAAAADVLGX4I2ZUOB53NZ2PXFFBC2N3NOEQ" alt="home">
+  <img src="https://raw.githubusercontent.com/Yogxx/tinyfm-snapshot/refs/heads/main/img/tinyfm2.png?token=GHSAT0AAAAAADVLGX4I2ZUOB53NZ2PXFFBC2N3NOEQ" alt="tinyfm2">
  </p>
 </details>
