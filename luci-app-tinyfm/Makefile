@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-tinyfm
 PKG_VERSION:=2.5.3
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=Yogxx <https://github.com/Yogxx/tinyfm>
