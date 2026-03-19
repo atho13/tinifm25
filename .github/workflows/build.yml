@@ -136,6 +136,15 @@ jobs:
 
         make defconfig
 
+        # Hapus semua CONFIG_PACKAGE_* agar tidak ada package lain yang ikut compile
+        # Hanya aktifkan luci-app-tinyfm sebagai module (=m)
+        grep -v "^CONFIG_PACKAGE_" .config > .config.tmp && mv .config.tmp .config
+        echo "CONFIG_PACKAGE_luci-app-tinyfm=m" >> .config
+        make defconfig
+
+        echo "=== Active packages in .config ==="
+        grep "^CONFIG_PACKAGE_" .config || echo "(none)"
+
         echo "=== Disk after feeds ==="
         df -h
 
@@ -148,7 +157,9 @@ jobs:
     - name: Compile luci-app-tinyfm
       run: |
         cd sdk
-        make package/luci-app-tinyfm/compile V=s -j$(nproc)
+        make package/luci-app-tinyfm/compile V=s -j$(nproc) \
+          CONFIG_AUTOREMOVE=n \
+          IGNORE_ERRORS=m
 
     # ================= LOCATE ARTIFACT =================
     - name: Locate built ${{ matrix.artifact_ext }}
