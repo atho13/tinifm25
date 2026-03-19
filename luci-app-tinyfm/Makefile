@@ -23,10 +23,16 @@ define Package/$(PKG_NAME)/postinst
 if [ -z "$${IPKG_INSTROOT}" ]; then
     echo "Installing PHP dependencies..."
     if command -v apk > /dev/null 2>&1; then
-        apk add php8 php8-cgi php8-fastcgi php8-fpm \
-            php8-mod-session php8-mod-ctype php8-mod-fileinfo \
-            php8-mod-zip php8-mod-iconv php8-mod-mbstring \
-            coreutils-stat zoneinfo-asia
+        retries=5
+        while [ $$retries -gt 0 ]; do
+            apk add php8 php8-cgi php8-fastcgi php8-fpm \
+                php8-mod-session php8-mod-ctype php8-mod-fileinfo \
+                php8-mod-zip php8-mod-iconv php8-mod-mbstring \
+                coreutils-stat zoneinfo-asia && break
+            echo "apk locked, retrying in 3s... ($$retries left)"
+            sleep 3
+            retries=$$((retries - 1))
+        done
     elif command -v opkg > /dev/null 2>&1; then
         opkg update
         opkg install php8 php8-cgi php8-fastcgi php8-fpm \
