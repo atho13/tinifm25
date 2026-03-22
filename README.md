@@ -2,9 +2,9 @@
   <br>Luci-app-TinyFM<br>
 </h1>
 
-<p align="center">
+<div align="center">
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/Yogxx/OpenWrt-nikkiku/total?style=for-the-badge&logo=github)
-</p>
+</div>
 
 Required dependencies
 ---
