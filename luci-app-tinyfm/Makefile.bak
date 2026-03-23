@@ -5,7 +5,7 @@ PKG_VERSION:=2.5.3
 PKG_RELEASE:=7
 
 PKG_LICENSE:=MIT
-PKG_MAINTAINER:=Frdmx <https://github.com>
+PKG_MAINTAINER:=Yogxx <https://github.com>
 
 LUCI_TITLE:=LuCI support for TinyFM
 LUCI_DEPENDS:=+php8 +php8-cgi +php8-fastcgi +php8-fpm \
