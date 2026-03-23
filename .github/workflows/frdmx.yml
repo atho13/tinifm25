@@ -1,4 +1,4 @@
-name: Frdmx luci-app-tinyfm
+name: Build luci-app-tinyfm
 
 permissions:
   contents: write
@@ -18,28 +18,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: SNAPSHOT
+          - name: SNAPSHOT-x86-64
             sdk_url: "https://downloads.openwrt.org"
-            feeds_branch: ""
             artifact_ext: "apk"
             find_pattern: "luci-app-tinyfm*.apk"
 
-          - name: 24.10.5
+          - name: 23.05.5-x86-64
             sdk_url: "https://downloads.openwrt.org"
-            feeds_branch: ";openwrt-24.10"
             artifact_ext: "ipk"
             find_pattern: "luci-app-tinyfm*.ipk"
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-
-    - name: Extract version
-      id: get_version
-      run: |
-        VERSION=$(grep PKG_VERSION luci-app-tinyfm/Makefile | sed 's/.*:=//' | tr -d ' ')
-        RELEASE=$(grep PKG_RELEASE luci-app-tinyfm/Makefile | sed 's/.*:=//' | tr -d ' ')
-        echo "version=${VERSION}-r${RELEASE}" >> $GITHUB_OUTPUT
 
     - name: Install Dependencies
       run: |
@@ -51,8 +42,16 @@ jobs:
 
     - name: Download & Extract SDK
       run: |
-        wget -q "${{ matrix.sdk_url }}" -O sdk.tar.zst
-        tar --use-compress-program=unzstd -xf sdk.tar.zst
+        URL="${{ matrix.sdk_url }}"
+        if [[ "$URL" == *".zst" ]]; then
+          wget -q "$URL" -O sdk.tar.zst
+          tar -I unzstd -xf sdk.tar.zst
+        else
+          wget -q "$URL" -O sdk.tar.xz
+          tar -xf sdk.tar.xz
+        fi
+        # Menghapus folder lama jika ada dan rename folder SDK hasil ekstrak
+        rm -rf sdk
         mv openwrt-sdk-* sdk
 
     - name: Prepare Feeds & Config
@@ -60,25 +59,39 @@ jobs:
         cd sdk
         ./scripts/feeds update -a
         ./scripts/feeds install -a
+        # Salin folder aplikasi ke dalam struktur SDK
+        cp -r ../luci-app-tinyfm package/
+        # Aktifkan paket dalam konfigurasi
         echo "CONFIG_PACKAGE_luci-app-tinyfm=m" >> .config
         make defconfig
 
-    - name: Copy Package
-      run: cp -r luci-app-tinyfm sdk/package/
-
-    - name: Compile
+    - name: Compile Package
       run: |
         cd sdk
+        # V=s untuk melihat log detail jika gagal
         make package/luci-app-tinyfm/compile V=s -j$(nproc)
 
     - name: Locate Artifact
+      id: locate
       run: |
-        FILE=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
-        echo "ARTIFACT_PATH=$FILE" >> $GITHUB_ENV
+        # Mencari file hasil compile di folder bin
+        FILE_PATH=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
+        if [ -z "$FILE_PATH" ]; then
+          echo "Error: Artifact not found!"
+          exit 1
+        fi
+        echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
+        echo "FILE_NAME=$(basename $FILE_PATH)" >> $GITHUB_ENV
+
+    - name: Upload Artifact to Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.name }}-${{ env.FILE_NAME }}
+        path: ${{ env.ARTIFACT_PATH }}
 
     - name: Publish Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref_name }}
         files: ${{ env.ARTIFACT_PATH }}
+        generate_release_notes: true
