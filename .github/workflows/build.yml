@@ -87,10 +87,18 @@ jobs:
         wget -q --show-progress "${{ matrix.sdk_url }}" -O sdk.tar.zst
 
     # ================= EXTRACT SDK =================
+    #- name: Extract SDK
+      #run: |
+        #tar --use-compress-program=unzstd -xf sdk.tar.zst
+        #EXTRACTED_DIR=$(tar -tf sdk.tar.zst | head -n1 | cut -f1 -d"/")
+        #mv "$EXTRACTED_DIR" sdk
+
+    # ================= EXTRACT SDK =================
     - name: Extract SDK
       run: |
         tar --use-compress-program=unzstd -xf sdk.tar.zst
-        EXTRACTED_DIR=$(tar -tf sdk.tar.zst | head -n1 | cut -f1 -d"/")
+        # Mencari folder asli hasil ekstrak tanpa karakter slash di akhir
+        EXTRACTED_DIR=$(ls -d openwrt-sdk-* | head -n1)
         mv "$EXTRACTED_DIR" sdk
 
     # ================= CACHE FEEDS =================
