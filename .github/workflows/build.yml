@@ -85,14 +85,13 @@ jobs:
       run: |
         echo "Downloading ${{ matrix.name }} SDK..."
         wget -q --show-progress "${{ matrix.sdk_url }}" -O sdk.tar.zst
-
+        
     # ================= EXTRACT SDK =================
     #- name: Extract SDK
       #run: |
         #tar --use-compress-program=unzstd -xf sdk.tar.zst
         #EXTRACTED_DIR=$(tar -tf sdk.tar.zst | head -n1 | cut -f1 -d"/")
         #mv "$EXTRACTED_DIR" sdk
-
     # ================= EXTRACT SDK =================
     - name: Extract SDK
       run: |
@@ -171,13 +170,27 @@ jobs:
         FILE=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
         if [ -z "$FILE" ]; then
           echo "${{ matrix.artifact_ext }} not found!"
-          find sdk/bin/packages -name "*.apk" -o -name "*.ipk" | head -20
           exit 1
         fi
-        echo "ARTIFACT_PATH=$FILE" >> $GITHUB_ENV
-        echo "Built ${{ matrix.artifact_ext }}:"
-        ls -lh "$FILE"
-
+        
+        # Beri nama unik berdasarkan matrix.name agar tidak saling tindih di Release
+        NEW_NAME="${{ matrix.name }}-$(basename $FILE)"
+        mv "$FILE" "$NEW_NAME"
+        
+        echo "ARTIFACT_PATH=$NEW_NAME" >> $GITHUB_ENV
+        echo "Built ${{ matrix.artifact_ext }}: $NEW_NAME"
+    # ================= LOCATE ARTIFACT =================
+    #- name: Locate built ${{ matrix.artifact_ext }}
+      #run: |
+        #FILE=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
+        #if [ -z "$FILE" ]; then
+          #echo "${{ matrix.artifact_ext }} not found!"
+          #find sdk/bin/packages -name "*.apk" -o -name "*.ipk" | head -20
+          #exit 1
+        #fi
+        #echo "ARTIFACT_PATH=$FILE" >> $GITHUB_ENV
+        #echo "Built ${{ matrix.artifact_ext }}:"
+        #ls -lh "$FILE"
 
     # ================= RELEASE =================
     - name: Publish to GitHub Release
@@ -193,7 +206,6 @@ jobs:
         files: ${{ env.ARTIFACT_PATH }}
         allow_updates: true
         prerelease: false
-
     # ================= RELEASE =================
     #- name: Publish to GitHub Release
       #if: startsWith(github.ref, 'refs/tags/')
