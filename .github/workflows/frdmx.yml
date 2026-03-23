@@ -18,6 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # --- SESUAIKAN URL DI BAWAH INI DENGAN TARGET ROUTER ANDA ---
           - name: SNAPSHOT-x86-64
             sdk_url: "https://downloads.openwrt.org"
             artifact_ext: "apk"
@@ -50,40 +51,36 @@ jobs:
           wget -q "$URL" -O sdk.tar.xz
           tar -xf sdk.tar.xz
         fi
-        # Menghapus folder lama jika ada dan rename folder SDK hasil ekstrak
         rm -rf sdk
         mv openwrt-sdk-* sdk
 
-    - name: Prepare Feeds & Config
+    - name: Prepare Feeds & Copy Package
       run: |
         cd sdk
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-        # Salin folder aplikasi ke dalam struktur SDK
+        # Pastikan nama folder paket sesuai dengan yang ada di repo Anda
         cp -r ../luci-app-tinyfm package/
-        # Aktifkan paket dalam konfigurasi
         echo "CONFIG_PACKAGE_luci-app-tinyfm=m" >> .config
         make defconfig
 
     - name: Compile Package
       run: |
         cd sdk
-        # V=s untuk melihat log detail jika gagal
         make package/luci-app-tinyfm/compile V=s -j$(nproc)
 
     - name: Locate Artifact
       id: locate
       run: |
-        # Mencari file hasil compile di folder bin
         FILE_PATH=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
         if [ -z "$FILE_PATH" ]; then
-          echo "Error: Artifact not found!"
+          echo "Error: Paket tidak ditemukan! Periksa log compile di atas."
           exit 1
         fi
         echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
         echo "FILE_NAME=$(basename $FILE_PATH)" >> $GITHUB_ENV
 
-    - name: Upload Artifact to Actions
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.name }}-${{ env.FILE_NAME }}
