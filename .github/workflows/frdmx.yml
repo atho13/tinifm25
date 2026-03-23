@@ -18,13 +18,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # --- SESUAIKAN URL DI BAWAH INI DENGAN TARGET ROUTER ANDA ---
-          - name: SNAPSHOT-arms-armv8
+          # Link SDK di bawah ini adalah untuk target ARMv8 (Amlogic/Meson)
+          - name: SNAPSHOT-armv8
             sdk_url: "https://downloads.openwrt.org"
             artifact_ext: "apk"
             find_pattern: "luci-app-tinyfm*.apk"
 
-          - name: 23.05.5-arms-armv8
+          - name: 23.05.5-armv8
             sdk_url: "https://downloads.openwrt.org"
             artifact_ext: "ipk"
             find_pattern: "luci-app-tinyfm*.ipk"
@@ -67,13 +67,11 @@ jobs:
     - name: Compile Package
       run: |
         cd sdk
-        # Menggunakan V=s untuk melihat log detail jika terjadi error compile
         make package/luci-app-tinyfm/compile V=s -j$(nproc)
 
     - name: Locate Artifact
       id: locate
       run: |
-        # Mencari file hasil compile (ipk/apk) di dalam folder bin SDK
         FILE_PATH=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
         if [ -z "$FILE_PATH" ]; then
           echo "Error: Paket tidak ditemukan. Periksa log Compile Package di atas."
