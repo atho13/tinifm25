@@ -12,24 +12,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
-
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
         include:
           - name: SNAPSHOT
-            # Link SDK Snapshot x86/64
             sdk_url: "https://downloads.openwrt.org"
-            feeds_branch: ""
             artifact_ext: "apk"
             find_pattern: "luci-app-tinyfm*.apk"
 
           - name: 24.10.0
-            # Link SDK Rilis 24.10 x86/64 (Pastikan versi rilis tersedia di server)
             sdk_url: "https://downloads.openwrt.org"
-            feeds_branch: ";openwrt-24.10"
             artifact_ext: "apk"
             find_pattern: "luci-app-tinyfm*.apk"
 
@@ -40,6 +35,7 @@ jobs:
     - name: Extract version
       id: get_version
       run: |
+        # Mengambil versi dari folder luci-app-tinyfm
         VERSION=$(grep PKG_VERSION luci-app-tinyfm/Makefile | sed 's/.*:=//' | tr -d ' ')
         RELEASE=$(grep PKG_RELEASE luci-app-tinyfm/Makefile | sed 's/.*:=//' | tr -d ' ')
         echo "FULL_VERSION=${VERSION}-r${RELEASE}" >> $GITHUB_ENV
@@ -59,28 +55,39 @@ jobs:
         EXTRACTED_DIR=$(ls -d openwrt-sdk-* | head -n1)
         mv "$EXTRACTED_DIR" sdk
 
-    - name: Prepare SDK
+    - name: Prepare Feeds
       run: |
         cd sdk
         ./scripts/feeds update -a
-        # Install dependensi PHP agar Makefile tidak error saat compile
+        ./scripts/feeds install -a
+        # Install dependensi PHP8 & LuCI
         ./scripts/feeds install php8 php8-cgi php8-fpm php8-mod-session \
           php8-mod-ctype php8-mod-fileinfo php8-mod-zip php8-mod-iconv \
-          php8-mod-mbstring coreutils zoneinfo-asia luci-base luci-compat
+          php8-mod-mbstring coreutils coreutils-stat zoneinfo-asia luci-base luci-compat
+
+    - name: Copy Package Folder into SDK
+      run: |
+        # Salin folder luci-app-tinyfm ke dalam folder package SDK
+        cp -r luci-app-tinyfm sdk/package/
         
-        cp -r ../luci-app-tinyfm package/
-        echo "CONFIG_PACKAGE_luci-app-tinyfm=m" >> .config
-        make defconfig
+        # Verifikasi keberadaan Makefile
+        ls -l sdk/package/luci-app-tinyfm/Makefile
 
     - name: Compile Package
       run: |
         cd sdk
+        # Update index paket agar folder manual terdeteksi
+        ./scripts/feeds update -i
+        
+        echo "CONFIG_PACKAGE_luci-app-tinyfm=m" >> .config
+        make defconfig
+        
+        # Mulai kompilasi
         make package/luci-app-tinyfm/compile V=s -j$(nproc)
 
     - name: Locate Artifact
       id: locate
       run: |
-        # Cari di folder bin hasil compile
         FILE=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
         if [ -z "$FILE" ]; then
           echo "ERROR: File tidak ditemukan!"
@@ -97,9 +104,7 @@ jobs:
         tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest-build' }}
         name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Build' }}
         body: |
-          **Informasi Build:**
-          - Versi: `${{ env.FULL_VERSION }}`
-          - Target: `x86/64`
-          - Tanggal: ${{ github.event.repository.pushed_at }}
+          Build otomatis untuk **luci-app-tinyfm**.
+          Versi Paket: `${{ env.FULL_VERSION }}`
         files: ${{ env.ARTIFACT_PATH }}
         allow_updates: true
