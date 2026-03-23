@@ -19,12 +19,12 @@ jobs:
       matrix:
         include:
           # --- SESUAIKAN URL DI BAWAH INI DENGAN TARGET ROUTER ANDA ---
-          - name: SNAPSHOT-x86-64
+          - name: SNAPSHOT-arms-armv8
             sdk_url: "https://downloads.openwrt.org"
             artifact_ext: "apk"
             find_pattern: "luci-app-tinyfm*.apk"
 
-          - name: 23.05.5-x86-64
+          - name: 23.05.5-arms-armv8
             sdk_url: "https://downloads.openwrt.org"
             artifact_ext: "ipk"
             find_pattern: "luci-app-tinyfm*.ipk"
@@ -59,7 +59,7 @@ jobs:
         cd sdk
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-        # Pastikan nama folder paket sesuai dengan yang ada di repo Anda
+        # Pastikan folder 'luci-app-tinyfm' ada di root repo Anda
         cp -r ../luci-app-tinyfm package/
         echo "CONFIG_PACKAGE_luci-app-tinyfm=m" >> .config
         make defconfig
@@ -67,14 +67,16 @@ jobs:
     - name: Compile Package
       run: |
         cd sdk
+        # Menggunakan V=s untuk melihat log detail jika terjadi error compile
         make package/luci-app-tinyfm/compile V=s -j$(nproc)
 
     - name: Locate Artifact
       id: locate
       run: |
+        # Mencari file hasil compile (ipk/apk) di dalam folder bin SDK
         FILE_PATH=$(find sdk/bin/packages -name "${{ matrix.find_pattern }}" | head -n1)
         if [ -z "$FILE_PATH" ]; then
-          echo "Error: Paket tidak ditemukan! Periksa log compile di atas."
+          echo "Error: Paket tidak ditemukan. Periksa log Compile Package di atas."
           exit 1
         fi
         echo "ARTIFACT_PATH=$FILE_PATH" >> $GITHUB_ENV
