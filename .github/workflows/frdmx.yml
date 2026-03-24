@@ -18,12 +18,12 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - name: SNAPSHOT
-            sdk_url: "https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
-            artifact_ext: "apk"
-            find_pattern: "luci-app-tinyfm*.apk"
+          #- name: SNAPSHOT
+            #sdk_url: "https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
+            #artifact_ext: "apk"
+            #find_pattern: "luci-app-tinyfm*.apk"
 
-          - name: 24.10.5
+          - name: 24.10.0
             sdk_url: "https://downloads.openwrt.org/releases/24.10.5/targets/x86/64/openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
             artifact_ext: "apk"
             find_pattern: "luci-app-tinyfm*.apk"
